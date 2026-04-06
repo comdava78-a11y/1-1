@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Связи в базе данных</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-950">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useMemo, useState } = React;
+
+    const RELATION_TYPES = {
+      oneToOne: "one-to-one",
+      oneToMany: "one-to-many",
+      manyToMany: "many-to-many",
+    };
+
+    const relationLabels = {
+      [RELATION_TYPES.oneToOne]: "Один к одному",
+      [RELATION_TYPES.oneToMany]: "Один ко многим",
+      [RELATION_TYPES.manyToMany]: "Многие ко многим",
+    };
+
+    const relationHints = {
+      [RELATION_TYPES.oneToOne]: "У одного объекта есть только одна пара, и наоборот.",
+      [RELATION_TYPES.oneToMany]: "Один объект связан с несколькими другими.",
+      [RELATION_TYPES.manyToMany]: "У обеих сторон может быть много связей.",
+    };
+
+    const quizTasksData = [
+      { id: 1, label: "Школьник — Электронный дневник", correct: RELATION_TYPES.oneToOne },
+      { id: 2, label: "Автомобиль — VIN-номер", correct: RELATION_TYPES.oneToOne },
+      { id: 3, label: "Классный руководитель — Ученики класса", correct: RELATION_TYPES.oneToMany },
+      { id: 4, label: "Магазин — Покупатели", correct: RELATION_TYPES.oneToMany },
+      { id: 5, label: "Фильм — Актёры", correct: RELATION_TYPES.manyToMany },
+      { id: 6, label: "Спортсмены — Соревнования", correct: RELATION_TYPES.manyToMany },
+      { id: 7, label: "Пользователь — Профиль", correct: RELATION_TYPES.oneToOne },
+      { id: 8, label: "Библиотека — Книги", correct: RELATION_TYPES.oneToMany },
+      { id: 9, label: "Музыканты — Группы", correct: RELATION_TYPES.manyToMany },
+    ];
+
+    const sortTasksData = [
+      { id: 101, label: "Страна — Столица", correct: RELATION_TYPES.oneToOne },
+      { id: 102, label: "Студент — Зачётная книжка", correct: RELATION_TYPES.oneToOne },
+      { id: 103, label: "Университет — Факультеты", correct: RELATION_TYPES.oneToMany },
+      { id: 104, label: "Автор — Статьи", correct: RELATION_TYPES.oneToMany },
+      { id: 105, label: "Врачи — Пациенты", correct: RELATION_TYPES.manyToMany },
+      { id: 106, label: "Покупатели — Товары", correct: RELATION_TYPES.manyToMany },
+      { id: 107, label: "Гражданин — ИНН", correct: RELATION_TYPES.oneToOne },
+      { id: 108, label: "Компания — Сотрудники", correct: RELATION_TYPES.oneToMany },
+      { id: 109, label: "Преподаватели — Учебные группы", correct: RELATION_TYPES.manyToMany },
+      { id: 110, label: "Курс — Уроки", correct: RELATION_TYPES.oneToMany },
+    ];
+
+    const logicTasksData = [
+      {
+        id: 201,
+        title: "У школы есть кабинеты. Каждый кабинет относится только к одной школе, а у школы кабинетов много.",
+        options: [
+          { id: "a", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+          { id: "b", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+          { id: "c", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+        ],
+        correct: RELATION_TYPES.oneToMany,
+        explanation: "Одна школа связана со многими кабинетами.",
+      },
+      {
+        id: 202,
+        title: "Один аккаунт имеет только один профиль, и один профиль принадлежит только одному аккаунту.",
+        options: [
+          { id: "a", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+          { id: "b", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+          { id: "c", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+        ],
+        correct: RELATION_TYPES.oneToOne,
+        explanation: "Это одна пара с двух сторон.",
+      },
+      {
+        id: 203,
+        title: "Один студент может ходить на несколько кружков, и в каждом кружке много студентов.",
+        options: [
+          { id: "a", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+          { id: "b", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+          { id: "c", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+        ],
+        correct: RELATION_TYPES.manyToMany,
+        explanation: "Много связей у обеих сторон.",
+      },
+      {
+        id: 204,
+        title: "У книги один ISBN-код, и один ISBN-код относится только к одной книге.",
+        options: [
+          { id: "a", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+          { id: "b", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+          { id: "c", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+        ],
+        correct: RELATION_TYPES.oneToOne,
+        explanation: "Одна книга и один уникальный код.",
+      },
+      {
+        id: 205,
+        title: "Один преподаватель может вести несколько предметов, но каждый предмет в этом примере закреплён только за одним преподавателем.",
+        options: [
+          { id: "a", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+          { id: "b", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+          { id: "c", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+        ],
+        correct: RELATION_TYPES.oneToMany,
+        explanation: "Один преподаватель связан со многими предметами.",
+      },
+      {
+        id: 206,
+        title: "Игрок может участвовать в нескольких матчах, и в каждом матче участвует много игроков.",
+        options: [
+          { id: "a", text: "Многие ко многим", value: RELATION_TYPES.manyToMany },
+          { id: "b", text: "Один ко многим", value: RELATION_TYPES.oneToMany },
+          { id: "c", text: "Один к одному", value: RELATION_TYPES.oneToOne },
+        ],
+        correct: RELATION_TYPES.manyToMany,
+        explanation: "У игрока много матчей, и у матча много игроков.",
+      },
+    ];
+
+    function calculateQuizScore(tasks, answers) {
+      return tasks.filter((task) => answers[task.id] === task.correct).length;
+    }
+
+    function calculateSortScore(buckets) {
+      return Object.entries(buckets).reduce((sum, [bucketId, items]) => {
+        return sum + items.filter((item) => item.correct === bucketId).length;
+      }, 0);
+    }
+
+    function createEmptyBuckets() {
+      return {
+        [RELATION_TYPES.oneToOne]: [],
+        [RELATION_TYPES.oneToMany]: [],
+        [RELATION_TYPES.manyToMany]: [],
+      };
+    }
+
+    function runSelfTests() {
+      const sampleAnswers = {
+        1: RELATION_TYPES.oneToOne,
+        2: RELATION_TYPES.oneToOne,
+        3: RELATION_TYPES.oneToMany,
+      };
+
+      console.assert(
+        calculateQuizScore(quizTasksData.slice(0, 3), sampleAnswers) === 3,
+        "Тест 1 не пройден: подсчет очков в тесте работает неверно"
+      );
+
+      console.assert(
+        calculateQuizScore(quizTasksData.slice(0, 3), { 1: RELATION_TYPES.oneToMany }) === 0,
+        "Тест 2 не пройден: неправильный ответ не должен давать очки"
+      );
+
+      const buckets = createEmptyBuckets();
+      buckets[RELATION_TYPES.oneToOne].push(sortTasksData[0]);
+      buckets[RELATION_TYPES.oneToMany].push(sortTasksData[2]);
+      buckets[RELATION_TYPES.manyToMany].push(sortTasksData[4]);
+
+      console.assert(
+        calculateSortScore(buckets) === 3,
+        "Тест 3 не пройден: подсчет очков в распределении работает неверно"
+      );
+
+      console.assert(
+        logicTasksData[0].correct === RELATION_TYPES.oneToMany,
+        "Тест 4 не пройден: первая логическая задача должна быть 'один ко многим'"
+      );
+
+      console.assert(
+        logicTasksData.filter((item) => item.correct === RELATION_TYPES.manyToMany).length >= 2,
+        "Тест 5 не пройден: в логической игре должно быть минимум 2 задачи на 'многие ко многим'"
+      );
+    }
+
+    runSelfTests();
+
+    function ScoreCard({ score, total, title }) {
+      const progress = total > 0 ? Math.round((score / total) * 100) : 0;
+
+      return (
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur">
+          <div className="text-sm font-bold uppercase tracking-[0.25em] text-blue-200">{title}</div>
+          <div className="mt-4 text-5xl font-black">{score}/{total}</div>
+          <div className="mt-4 h-4 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-pink-500 transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="mt-3 text-sm font-semibold text-slate-300">Пройдено: {progress}%</div>
+        </div>
+      );
+    }
+
+    function ExplanationCards() {
+      const cards = [
+        {
+          title: "Один к одному",
+          text: "Один объект связан только с одним объектом. И с другой стороны тоже только одна связь.",
+          example: "Пример: человек — паспорт",
+        },
+        {
+          title: "Один ко многим",
+          text: "Один объект может быть связан сразу с несколькими. Но каждый из них относится только к одному главному объекту.",
+          example: "Пример: учитель — ученики",
+        },
+        {
+          title: "Многие ко многим",
+          text: "И с одной стороны, и с другой стороны может быть сразу много связей.",
+          example: "Пример: ученики — предметы",
+        },
+      ];
+
+      return (
+        <div className="grid gap-4">
+          {cards.map((card) => (
+            <div key={card.title} className="rounded-3xl border border-white/10 bg-slate-950/50 p-5 shadow-xl">
+              <h3 className="text-2xl font-black text-cyan-300">{card.title}</h3>
+              <p className="mt-3 text-lg leading-7 text-slate-200">{card.text}</p>
+              <div className="mt-4 inline-block rounded-2xl bg-white/10 px-4 py-2 font-bold text-blue-100">
+                {card.example}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function QuizGame({ tasks, answers, checked, onAnswer, onCheck, onReset }) {
+      return (
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
+          <h2 className="text-3xl font-black">Игра 1: Выбери правильную связь</h2>
+          <p className="mt-2 text-slate-300">
+            Прочитай пример и нажми на правильный тип связи. В первой игре примеры немного проще, чтобы сначала понять тему.
+          </p>
+
+          <div className="mt-6 grid gap-4">
+            {tasks.map((task, index) => {
+              const isHard = index >= 5;
+              const selected = answers[task.id];
+              const isCorrect = selected === task.correct;
+              const isWrong = checked && selected && !isCorrect;
+              const isRight = checked && isCorrect;
+
+              return (
+                <div key={task.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-pink-500 font-black">
+                        {index + 1}
+                      </div>
+                      <div className="text-xl font-black">{task.label}</div>
+                      {isHard && (
+                        <div className="mt-2 inline-block rounded-xl bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+                          Сложнее
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {Object.values(RELATION_TYPES).map((relationType) => {
+                        const active = selected === relationType;
+                        return (
+                          <button
+                            key={relationType}
+                            onClick={() => onAnswer(task.id, relationType)}
+                            className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                              active
+                                ? "border-cyan-300 bg-cyan-400/20 text-cyan-100 shadow-lg"
+                                : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                            }`}
+                          >
+                            {relationLabels[relationType]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {checked && (
+                    <div
+                      className={`mt-4 rounded-2xl px-4 py-3 font-bold ${
+                        isRight
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : isWrong
+                          ? "bg-rose-500/15 text-rose-300"
+                          : "bg-white/5 text-slate-400"
+                      }`}
+                    >
+                      {!selected && "Ответ не выбран"}
+                      {isRight && "Верно"}
+                      {isWrong && `Неверно. Правильный ответ: ${relationLabels[task.correct]}`}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={onCheck}
+              className="rounded-2xl bg-gradient-to-r from-blue-600 to-pink-500 px-5 py-3 font-black shadow-xl transition hover:scale-[1.02]"
+            >
+              Проверить
+            </button>
+            <button
+              onClick={onReset}
+              className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-black text-white transition hover:bg-white/10"
+            >
+              Сброс
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function SortGame({ tasks }) {
+      const [pool, setPool] = useState(tasks);
+      const [buckets, setBuckets] = useState(createEmptyBuckets());
+
+      const score = calculateSortScore(buckets);
+
+      function moveToBucket(task, bucketId) {
+        setPool((prev) => prev.filter((item) => item.id !== task.id));
+        setBuckets((prev) => ({
+          ...prev,
+          [bucketId]: [...prev[bucketId], task],
+        }));
+      }
+
+      function returnToPool(task, bucketId) {
+        setBuckets((prev) => ({
+          ...prev,
+          [bucketId]: prev[bucketId].filter((item) => item.id !== task.id),
+        }));
+        setPool((prev) => [...prev, task]);
+      }
+
+      function resetSort() {
+        setPool(tasks);
+        setBuckets(createEmptyBuckets());
+      }
+
+      return (
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-3xl font-black">Игра 2: Распредели карточки</h2>
+              <p className="mt-2 text-slate-300">
+                Нажми на карточку и отправь её в правильный раздел. Во второй игре примеры уже другие и немного сложнее.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-950/50 px-4 py-3 text-lg font-black">
+              Очки: {score}/{tasks.length}
+            </div>
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-dashed border-white/15 bg-slate-950/40 p-4">
+            <div className="mb-3 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-200">
+              Сложнее: здесь больше карточек и есть похожие примеры, поэтому нужно внимательно подумать.
+            </div>
+            <div className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-slate-300">Карточки</div>
+            <div className="flex flex-wrap gap-3">
+              {pool.length === 0 && <div className="text-slate-400">Все карточки уже распределены.</div>}
+              {pool.map((task) => (
+                <div key={task.id} className="rounded-2xl bg-white/10 px-4 py-3 font-bold text-white shadow-lg">
+                  {task.label}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4 xl:grid-cols-3">
+            {Object.values(RELATION_TYPES).map((relationType) => (
+              <div key={relationType} className="rounded-3xl border border-white/10 bg-slate-950/50 p-4">
+                <div className="text-2xl font-black text-cyan-300">{relationLabels[relationType]}</div>
+                <div className="mt-2 text-sm text-slate-300">{relationHints[relationType]}</div>
+
+                <div className="mt-4 flex flex-col gap-2">
+                  {pool.map((task) => (
+                    <button
+                      key={`${relationType}-${task.id}`}
+                      onClick={() => moveToBucket(task, relationType)}
+                      className="rounded-2xl bg-white/5 px-4 py-3 text-left font-bold text-white transition hover:bg-white/10"
+                    >
+                      + {task.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2">
+                  {buckets[relationType].map((task) => {
+                    const correct = task.correct === relationType;
+                    return (
+                      <button
+                        key={`placed-${relationType}-${task.id}`}
+                        onClick={() => returnToPool(task, relationType)}
+                        className={`rounded-2xl border px-4 py-3 text-left font-bold ${
+                          correct
+                            ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                            : "border-rose-400/30 bg-rose-500/10 text-rose-200"
+                        }`}
+                      >
+                        {task.label} {correct ? "✓" : "✗"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex gap-3">
+            <button
+              onClick={resetSort}
+              className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-black text-white transition hover:bg-white/10"
+            >
+              Сброс
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function LogicGame({ tasks }) {
+      const [answers, setAnswers] = useState({});
+      const [checked, setChecked] = useState(false);
+
+      const score = tasks.filter((task) => answers[task.id] === task.correct).length;
+
+      function resetLogic() {
+        setAnswers({});
+        setChecked(false);
+      }
+
+      return (
+        <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-2xl backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 className="text-3xl font-black">Игра 3: Логические ситуации</h2>
+              <p className="mt-2 text-slate-300">
+                Это сложнее: здесь нужно не просто узнать пример, а внимательно прочитать условие и понять логику связи.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-950/50 px-4 py-3 text-lg font-black">
+              Очки: {score}/{tasks.length}
+            </div>
+          </div>
+
+          <div className="mt-6 grid gap-4">
+            {tasks.map((task, index) => {
+              const selected = answers[task.id];
+              const isCorrect = selected === task.correct;
+              const isWrong = checked && selected && !isCorrect;
+              const isRight = checked && isCorrect;
+
+              return (
+                <div key={task.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-5">
+                  <div className="mb-3 inline-flex rounded-xl bg-amber-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-amber-200">
+                    Ситуация {index + 1}
+                  </div>
+                  <div className="text-lg font-bold leading-7 text-white">{task.title}</div>
+
+                  <div className="mt-4 grid gap-2 md:grid-cols-3">
+                    {task.options.map((option) => {
+                      const active = selected === option.value;
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => {
+                            setAnswers((prev) => ({ ...prev, [task.id]: option.value }));
+                            setChecked(false);
+                          }}
+                          className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
+                            active
+                              ? "border-cyan-300 bg-cyan-400/20 text-cyan-100 shadow-lg"
+                              : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                          }`}
+                        >
+                          {option.text}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {checked && (
+                    <div
+                      className={`mt-4 rounded-2xl px-4 py-3 font-bold leading-7 ${
+                        isRight
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : isWrong
+                          ? "bg-rose-500/15 text-rose-300"
+                          : "bg-white/5 text-slate-400"
+                      }`}
+                    >
+                      {!selected && "Ответ не выбран"}
+                      {isRight && `Верно. ${task.explanation}`}
+                      {isWrong && `Неверно. Правильный ответ: ${relationLabels[task.correct]}. ${task.explanation}`}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button
+              onClick={() => setChecked(true)}
+              className="rounded-2xl bg-gradient-to-r from-blue-600 to-pink-500 px-5 py-3 font-black shadow-xl transition hover:scale-[1.02]"
+            >
+              Проверить
+            </button>
+            <button
+              onClick={resetLogic}
+              className="rounded-2xl border border-white/10 bg-white/5 px-5 py-3 font-black text-white transition hover:bg-white/10"
+            >
+              Сброс
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    function DatabaseRelationshipsSchoolSite() {
+      const quizTasks = useMemo(() => quizTasksData, []);
+      const sortTasks = useMemo(() => sortTasksData, []);
+      const logicTasks = useMemo(() => logicTasksData, []);
+      const [mode, setMode] = useState("quiz");
+      const [answers, setAnswers] = useState({});
+      const [checked, setChecked] = useState(false);
+
+      const quizScore = calculateQuizScore(quizTasks, answers);
+
+      function setAnswer(taskId, relationType) {
+        setAnswers((prev) => ({ ...prev, [taskId]: relationType }));
+        setChecked(false);
+      }
+
+      function resetQuiz() {
+        setAnswers({});
+        setChecked(false);
+      }
+
+      const currentScore =
+        mode === "quiz"
+          ? quizScore
+          : 0;
+
+      const currentTotal =
+        mode === "quiz"
+          ? quizTasks.length
+          : mode === "sort"
+          ? sortTasks.length
+          : logicTasks.length;
+
+      const currentTitle =
+        mode === "quiz"
+          ? "Результат теста"
+          : mode === "sort"
+          ? "Распредели карточки"
+          : "Логическая игра";
+
+      return (
+        <div className="min-h-screen bg-slate-950 text-white">
+          <div className="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_28%),radial-gradient(circle_at_bottom,_rgba(236,72,153,0.18),_transparent_25%)]" />
+
+          <main className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
+            <section className="rounded-[32px] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur md:p-8">
+              <div className="inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-sm font-black uppercase tracking-[0.25em] text-cyan-200">
+                Учебный сайт-игра
+              </div>
+
+              <div className="mt-5 grid gap-8 xl:grid-cols-[1.1fr_0.9fr] xl:items-center">
+                <div>
+                  <h1 className="text-4xl font-black leading-tight md:text-6xl">Связи в базе данных</h1>
+                  <p className="mt-4 max-w-3xl text-lg leading-8 text-slate-200 md:text-xl">
+                    Здесь ученик может быстро понять, что означают <b>один к одному</b>, <b>один ко многим</b> и <b>многие ко многим</b>, а потом сразу проверить себя в трёх играх.
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => setMode("quiz")}
+                      className={`rounded-2xl px-5 py-3 font-black transition ${
+                        mode === "quiz"
+                          ? "bg-gradient-to-r from-blue-600 to-pink-500 shadow-xl"
+                          : "border border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      Игра 1: Выбери связь
+                    </button>
+                    <button
+                      onClick={() => setMode("sort")}
+                      className={`rounded-2xl px-5 py-3 font-black transition ${
+                        mode === "sort"
+                          ? "bg-gradient-to-r from-blue-600 to-pink-500 shadow-xl"
+                          : "border border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      Игра 2: Распредели карточки
+                    </button>
+                    <button
+                      onClick={() => setMode("logic")}
+                      className={`rounded-2xl px-5 py-3 font-black transition ${
+                        mode === "logic"
+                          ? "bg-gradient-to-r from-blue-600 to-pink-500 shadow-xl"
+                          : "border border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      Игра 3: Логические ситуации
+                    </button>
+                  </div>
+                </div>
+
+                <ScoreCard
+                  score={currentScore}
+                  total={currentTotal}
+                  title={currentTitle}
+                />
+              </div>
+            </section>
+
+            <section className="mt-8 grid gap-8 xl:grid-cols-[1fr_360px]">
+              <div className="grid gap-8">
+                <ExplanationCards />
+
+                {mode === "quiz" ? (
+                  <QuizGame
+                    tasks={quizTasks}
+                    answers={answers}
+                    checked={checked}
+                    onAnswer={setAnswer}
+                    onCheck={() => setChecked(true)}
+                    onReset={resetQuiz}
+                  />
+                ) : mode === "sort" ? (
+                  <SortGame tasks={sortTasks} />
+                ) : (
+                  <LogicGame tasks={logicTasks} />
+                )}
+              </div>
+
+              <aside className="rounded-3xl border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur xl:sticky xl:top-6 xl:h-fit">
+                <h2 className="text-2xl font-black">Памятка</h2>
+                <div className="mt-5 grid gap-3 text-base leading-7 text-slate-200">
+                  <div className="rounded-2xl bg-slate-950/50 p-4">
+                    <b>Один к одному</b><br />
+                    Один объект = одна пара.
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/50 p-4">
+                    <b>Один ко многим</b><br />
+                    Один главный связан с несколькими.
+                  </div>
+                  <div className="rounded-2xl bg-slate-950/50 p-4">
+                    <b>Многие ко многим</b><br />
+                    Много связей у обеих сторон.
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl bg-gradient-to-br from-blue-500/15 to-pink-500/15 p-4 text-slate-100">
+                  <div className="mb-3 rounded-2xl bg-amber-400/10 px-4 py-3 text-sm font-bold text-amber-200">
+                    Новая игра: теперь есть ещё и сложный режим с логическими ситуациями.
+                  </div>
+                  <div className="text-sm font-black uppercase tracking-[0.2em] text-cyan-200">Подсказка</div>
+                  <p className="mt-3 leading-7">
+                    Если это обычная пара — это <b>один к одному</b>. Если один главный и много зависимых — это <b>один ко многим</b>. Если много с обеих сторон — это <b>многие ко многим</b>.
+                  </p>
+                </div>
+              </aside>
+            </section>
+
+            <footer className="mt-8 rounded-3xl border border-white/10 bg-white/10 px-6 py-5 text-center text-xl font-black shadow-2xl backdrop-blur">
+              Сделал Русинов Давид, 10А класс
+            </footer>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<DatabaseRelationshipsSchoolSite />);
+  </script>
+</body>
+</html>
